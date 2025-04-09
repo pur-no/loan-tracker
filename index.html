@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Advanced Loan Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#4CAF50">
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    input, button, select {
+      padding: 8px;
+      margin: 5px 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button.delete {
+      background: #f44336;
+    }
+    #transactions-list, #people-summary {
+      margin-top: 20px;
+    }
+    .transaction {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .positive { color: green; }
+    .negative { color: red; }
+    .purpose { color: #666; font-style: italic; }
+    .person-summary {
+      padding: 10px;
+      background: #f9f9f9;
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Advanced Loan Tracker</h1>
+  
+  <input type="text" id="person" placeholder="Name" required>
+  <input type="number" id="amount" placeholder="Amount (+ lent, - borrowed)" required>
+  <input type="text" id="purpose" placeholder="Purpose (optional)">
+  <input type="date" id="date" required>
+  <button onclick="addTransaction()">Add Transaction</button>
+
+  <div id="people-summary"></div>
+  <div id="transactions-list"></div>
+
+  <script>
+    let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+    cleanOldTransactions(); // Auto-delete old entries on load
+    updateUI();
+
+    function addTransaction() {
+      const person = document.getElementById('person').value.trim();
+      const amount = parseFloat(document.getElementById('amount').value);
+      const purpose = document.getElementById('purpose').value.trim() || "No purpose";
+      const date = document.getElementById('date').value;
+
+      if (!person || isNaN(amount) || !date) {
+        alert("Please fill name, amount, and date!");
+        return;
+      }
+
+      transactions.push({ 
+        person, 
+        amount, 
+        purpose, 
+        date,
+        id: Date.now() // Unique ID for deletion
+      });
+      saveData();
+      updateUI();
+      
+      // Clear form
+      document.getElementById('person').value = "";
+      document.getElementById('amount').value = "";
+      document.getElementById('purpose').value = "";
+    }
+
+    function deleteTransaction(id) {
+      transactions = transactions.filter(t => t.id !== id);
+      saveData();
+      updateUI();
+    }
+
+    function cleanOldTransactions() {
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      
+      transactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate > oneYearAgo;
+      });
+      saveData();
+    }
+
+    function saveData() {
+      localStorage.setItem('transactions', JSON.stringify(transactions));
+    }
+
+    function updateUI() {
+      cleanOldTransactions();
+      updatePeopleSummary();
+      updateTransactionList();
+    }
+
+    function updatePeopleSummary() {
+      const summary = {};
+      transactions.forEach(t => {
+        if (!summary[t.person]) summary[t.person] = 0;
+        summary[t.person] += t.amount;
+      });
+
+      const summaryHTML = Object.entries(summary).map(([person, total]) => `
+        <div class="person-summary">
+          <strong>${person}</strong>: 
+          <span class="${total >= 0 ? 'positive' : 'negative'}">
+            $${total.toFixed(2)} (${total >= 0 ? 'owes you' : 'you owe'} $${Math.abs(total).toFixed(2)})
+          </span>
+        </div>
+      `).join('');
+
+      document.getElementById('people-summary').innerHTML = `
+        <h2>People Summary</h2>
+        ${summaryHTML || "<p>No transactions yet</p>"}
+      `;
+    }
+
+    function updateTransactionList() {
+      document.getElementById('transactions-list').innerHTML = `
+        <h2>All Transactions</h2>
+        ${transactions.map(t => `
+          <div class="transaction">
+            <div>
+              <span class="${t.amount >= 0 ? 'positive' : 'negative'}">
+                ${t.date}: ${t.person} - ${t.amount > 0 ? '+' : ''}${t.amount}
+              </span>
+              <button onclick="deleteTransaction(${t.id})" class="delete">Delete</button>
+            </div>
+            <div class="purpose">${t.purpose}</div>
+          </div>
+        `).join('') || "<p>No transactions yet</p>"}
+      `;
+    }
+
+    // PWA Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js');
+      });
+    }
+  </script>
+</body>
+</html>
